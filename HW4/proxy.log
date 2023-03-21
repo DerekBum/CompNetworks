@@ -1,0 +1,5 @@
+GET http://amazon.com/ 200
+GET http://getwiki.net/wiki.php 404
+GET http://google.com/ 403
+GET http://fonts.gstatic.com/s/googlesans/v14/4UaGrENHsxJlGDuGo1OIlL3Kwp5eKQtGBlc.woff2 200
+GET http://fonts.gstatic.com/s/googlesans/v14/4UaGrENHsxJlGDuGo1OIlL3Kwp5eKQtGBlc.woff2 304
