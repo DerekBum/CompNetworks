@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -12,15 +14,9 @@ import (
 	"time"
 )
 
-type CacheUnit struct {
-	respBody   []byte
-	respStatus int
-	addingTime string
-	eTag       string
-}
-
 var bList = flag.String("bl", "blacklist.txt", "Black list of sites and domains")
 var addr = flag.String("addr", ":8081", "Addr of the localhost server. Example: \":8081\"")
+var cachePath = flag.String("cache", "./cache", "Path to cache folder")
 
 func main() {
 	flag.Parse()
@@ -32,7 +28,27 @@ func main() {
 	}
 	defer logFile.Close()
 
-	cache := map[string]CacheUnit{}
+	cache := map[string]string{}
+	items, _ := ioutil.ReadDir(*cachePath)
+	for _, item := range items {
+		file, _ := os.Open(*cachePath + "/" + item.Name())
+		scanner := bufio.NewScanner(file)
+		scanner.Scan()
+		isCurrURL := strings.Split(scanner.Text(), " ")
+		if len(isCurrURL) <= 1 {
+			file.Close()
+			continue
+		}
+		currURL := isCurrURL[1]
+		scanner.Scan()
+		isAddingTime := strings.Split(scanner.Text(), "$")
+		if len(isAddingTime) <= 1 {
+			file.Close()
+			continue
+		}
+		cache[currURL] = *cachePath + "/" + item.Name()
+		file.Close()
+	}
 
 	file, _ := os.Open(*bList)
 	scanner := bufio.NewScanner(file)
@@ -43,11 +59,11 @@ func main() {
 	file.Close()
 
 	// Start the server and listen on port
-	http.HandleFunc("/", handleRequest(logFile, cache, blackList))
+	http.HandleFunc("/", handleRequest(logFile, cache, blackList, *cachePath))
 	http.ListenAndServe(*addr, nil)
 }
 
-func handleRequest(logFile *os.File, cache map[string]CacheUnit, blackList []string) http.HandlerFunc {
+func handleRequest(logFile *os.File, cache map[string]string, blackList []string, cachePath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Create a new request to the target server
 		targetURL := r.URL.String()
@@ -69,10 +85,29 @@ func handleRequest(logFile *os.File, cache map[string]CacheUnit, blackList []str
 			return
 		}
 
-		if cacheUnit, inCache := cache[targetURL]; inCache {
-			targetReq.Header.Add("If-Modified-Since", cacheUnit.addingTime)
-			if cacheUnit.eTag != "" {
-				targetReq.Header.Add("If-None-Match", cacheUnit.eTag)
+		var fileName string
+
+		if path, inCache := cache[targetURL]; inCache {
+
+			var addingTime string
+			var eTag string
+
+			file, _ := os.Open(path)
+			scanner := bufio.NewScanner(file)
+			scanner.Scan()
+			fileName = path
+			scanner.Scan()
+			addingTime = strings.Split(scanner.Text(), "$")[1]
+			scanner.Scan()
+			eTagIs := strings.Split(scanner.Text(), " ")
+			if len(eTagIs) > 1 {
+				eTag = eTagIs[1]
+			}
+			file.Close()
+
+			targetReq.Header.Add("If-Modified-Since", addingTime)
+			if eTag != "" && eTag != "\n" {
+				targetReq.Header.Add("If-None-Match", eTag)
 			}
 		}
 
@@ -105,10 +140,25 @@ func handleRequest(logFile *os.File, cache map[string]CacheUnit, blackList []str
 		var body []byte
 		var statusCode int
 
+		if fileName == "" {
+			code := sha256.New()
+			var fileNameInt []byte
+			code.Write(fileNameInt)
+			sha := base64.URLEncoding.EncodeToString(code.Sum(nil))
+			fileName = cachePath + "/" + sha + ".txt"
+		}
+
 		// Copy the target response body to the outgoing response
 		if targetResp.StatusCode == 304 {
-			fromCache, _ := cache[targetURL]
-			body = fromCache.respBody
+			file, _ := os.Open(fileName)
+			scanner := bufio.NewScanner(file)
+			scanner.Scan()
+			scanner.Scan()
+			scanner.Scan()
+			for scanner.Scan() {
+				body = append(body, scanner.Bytes()...)
+			}
+			file.Close()
 			statusCode = 304
 		} else {
 			body, err = ioutil.ReadAll(targetResp.Body)
@@ -119,8 +169,16 @@ func handleRequest(logFile *os.File, cache map[string]CacheUnit, blackList []str
 				return
 			}
 
-			cacheUnit := CacheUnit{respBody: body, respStatus: targetResp.StatusCode, addingTime: time.Now().Format(http.TimeFormat), eTag: targetResp.Header.Get("Etag")}
-			cache[targetURL] = cacheUnit
+			file, _ := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0745)
+
+			file.Write([]byte(fmt.Sprintf("URL: %s\n", targetURL)))
+			file.Write([]byte(fmt.Sprintf("LastModified:$%s\n", time.Now().Format(http.TimeFormat))))
+			file.Write([]byte(fmt.Sprintf("eTag: %s\n", targetResp.Header.Get("Etag"))))
+			file.Write(body)
+
+			file.Close()
+
+			cache[targetURL] = fileName
 			statusCode = targetResp.StatusCode
 		}
 
