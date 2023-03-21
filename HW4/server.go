@@ -187,7 +187,6 @@ func handleRequest(logFile *os.File, cache map[string]string, blackList []string
 		// Log the response
 		logMessage := fmt.Sprintf("%s %s %d\n", r.Method, targetURL, statusCode)
 		if r.Method == "POST" {
-			println(fmt.Sprintf("%v", body))
 			logMessage = fmt.Sprintf("%s %s %d\n%s\n", r.Method, targetURL, statusCode, string(body))
 		}
 		logFile.WriteString(logMessage)
