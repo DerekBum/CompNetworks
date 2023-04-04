@@ -12,7 +12,9 @@ go run guiApp.go getFiles.go
 ```
 
 Пример пользования:
-# **Видео**
+
+https://user-images.githubusercontent.com/38702085/229877809-b0460a80-3d10-4ecf-86a8-cfa4039cd246.mp4
+
 
 ### Письменная инструкция:
 
