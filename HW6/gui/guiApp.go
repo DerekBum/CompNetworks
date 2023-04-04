@@ -29,6 +29,7 @@ func main() {
 	statusLabel := widget.NewLabel("Not connected")
 	outputLabel := widget.NewLabel("")
 	fileContent := widget.NewMultiLineEntry()
+	fileContent.Disable()
 
 	statusChan := make(chan string)
 
@@ -246,6 +247,7 @@ func main() {
 			readFileButton.Enable()
 			updateFileButton.Enable()
 			deleteFileButton.Enable()
+			fileContent.Enable()
 		},
 		SubmitText: "Connect",
 	}

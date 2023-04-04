@@ -11,11 +11,11 @@ import (
 	"github.com/jlaffaye/ftp"
 )
 
-var addr = flag.String("addr", "192.168.0.105:21", "FTP server address in format \"{host}:{port}\"")
+var addr = flag.String("addr", "192.168.0.105", "FTP server host address")
 var user = flag.String("user", "San", "Username")
 var pwrd = flag.String("pwrd", "123", "User password")
 var pathFTP = flag.String("pF", "/catch/pep.png", "Path to file on FTP")
-var pathLocal = flag.String("pL", "pep.png", "Path to local file")
+var pathLocal = flag.String("pL", "samples/pep.png", "Path to local file")
 
 func main() {
 	var getFiles, uploadFile, downloadFile, create bool
@@ -26,7 +26,7 @@ func main() {
 
 	flag.Parse()
 
-	c, err := ftp.Dial(*addr, ftp.DialWithTimeout(5*time.Second))
+	c, err := ftp.Dial(*addr+":21", ftp.DialWithTimeout(5*time.Second))
 	if err != nil {
 		log.Fatal(err)
 	}
