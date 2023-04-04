@@ -8,7 +8,7 @@
 
 Для запуска приложения нужно из корня проекта вызвать:
 ```angular2html
-go run guiApp.go
+go run guiApp.go getFiles.go
 ```
 
 Пример пользования:
