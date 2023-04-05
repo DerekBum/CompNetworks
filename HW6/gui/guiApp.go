@@ -27,9 +27,10 @@ func main() {
 	usernameEntry := widget.NewEntry()
 	passwordEntry := widget.NewPasswordEntry()
 	statusLabel := widget.NewLabel("Not connected")
-	outputLabel := widget.NewLabel("")
+	outputLabel := widget.NewMultiLineEntry()
 	fileContent := widget.NewMultiLineEntry()
 	fileContent.Disable()
+	fileContent.SetMinRowsVisible(10)
 
 	statusChan := make(chan string)
 
