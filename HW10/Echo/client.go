@@ -97,37 +97,43 @@ func main() {
 			maxRtt = rtt
 		}
 		totalRtt += rtt
-		received++
 		headerReply := icmpHeader{}
 		buffer = bytes.Buffer{}
-		binary.Read(bytes.NewReader(reply[ipHeaderSize:n]), binary.BigEndian, &headerReply)
+		binary.Read(bytes.NewReader(reply[ipHeaderSize:ipHeaderSize+8]), binary.BigEndian, &headerReply)
 		fmt.Printf("--------------------------------------------------------------------------------\n")
 
-		if headerReply.Type == icmpEchoReply {
-			if headerReply.Id != header.Id {
-				continue
-			}
-
-			fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n", n, ipAddr, headerReply.Seq, rtt)
-			fmt.Printf("\n--- %s ping statistics ---\n", *host)
-		} else {
-			switch headerReply.Code {
-			case 0:
-				fmt.Println("ICMP ERROR: Destination network unreachable")
-			case 1:
-				fmt.Println("ICMP ERROR: Destination host unreachable")
-			case 2:
-				fmt.Println("ICMP ERROR: Protocol unreachable")
-			case 3:
-				fmt.Println("ICMP ERROR: Destination port unreachable")
-			default:
-				fmt.Printf("ICMP ERROR: Code %d\n", headerReply.Code)
-			}
+		if !checkChecksum(headerReply, reply[ipHeaderSize+8:n]) {
+			fmt.Printf("ERROR: bad checksum\ttime=%v\n", rtt)
 			lostPackets++
+		} else {
+
+			if headerReply.Type == icmpEchoReply {
+				received++
+				if headerReply.Id != header.Id {
+					continue
+				}
+
+				fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n", n, ipAddr, headerReply.Seq, rtt)
+				fmt.Printf("\n--- %s ping statistics ---\n", *host)
+			} else {
+				switch headerReply.Code {
+				case 0:
+					fmt.Println("ICMP ERROR: Destination network unreachable")
+				case 1:
+					fmt.Println("ICMP ERROR: Destination host unreachable")
+				case 2:
+					fmt.Println("ICMP ERROR: Protocol unreachable")
+				case 3:
+					fmt.Println("ICMP ERROR: Destination port unreachable")
+				default:
+					fmt.Printf("ICMP ERROR: Code %d\n", headerReply.Code)
+				}
+				lostPackets++
+			}
 		}
 
 		lossPercent := float64(lostPackets) / float64(received+lostPackets) * 100.0
-		avgRtt := totalRtt / time.Duration(received)
+		avgRtt := totalRtt / time.Duration(received+lostPackets)
 		fmt.Printf("%d packets transmitted, %d packets received, %.3f%% packet loss\n", received+lostPackets, received, lossPercent)
 		fmt.Printf("round-trip min/avg/max = %v/%v/%v\n", minRtt, avgRtt, maxRtt)
 
@@ -148,4 +154,17 @@ func checksum(data []byte) uint16 {
 	sum = (sum >> 16) + (sum & 0xffff)
 	sum += sum >> 16
 	return uint16(^sum)
+}
+
+func checkChecksum(header icmpHeader, payload []byte) bool {
+	got := header.Checksum
+	header.Checksum = 0
+
+	var buff bytes.Buffer
+	binary.Write(&buff, binary.BigEndian, header)
+	binary.Write(&buff, binary.BigEndian, payload)
+
+	control := checksum(buff.Bytes())
+
+	return control == got
 }
