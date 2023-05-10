@@ -28,4 +28,5 @@ python3 ./client.py <args>
 
 ### Работа приложения
 
-# Видос!!!!
+https://github.com/DerekBum/CompNetworks/assets/38702085/0db9b141-997b-4105-9c7e-2c052e8f16bc
+
