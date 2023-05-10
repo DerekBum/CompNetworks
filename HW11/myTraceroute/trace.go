@@ -16,6 +16,7 @@ import (
 var dest = flag.String("dst", "akamai.com", "Destination host name")
 var retries = flag.Int("ret", 3, "Number of retries")
 var tOut = flag.Int("time", 1, "Timeout in seconds")
+var localIP = flag.String("ip", "no-ip", "Local IP to do traceroute")
 
 type Packet struct {
 	Type     uint8
@@ -36,7 +37,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := net.ListenPacket("ip4:icmp", "192.168.0.107")
+	var local string
+	if *localIP == "no-ip" {
+		var ip net.IP
+		ifaces, _ := net.Interfaces()
+		for _, i := range ifaces {
+			addrs, _ := i.Addrs()
+			for _, address := range addrs {
+				switch v := address.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				}
+			}
+		}
+		local = ip.String()
+	} else {
+		local = *localIP
+	}
+
+	conn, err := net.ListenPacket("ip4:icmp", local)
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		os.Exit(1)
@@ -51,7 +70,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Traceroute to %s (%s)\n", dest, addr.String())
+	fmt.Printf("Traceroute to %s (%s)\n", *dest, addr.String())
 
 	for ttl := 1; ; ttl++ {
 		msg := Packet{Type: uint8(ipv4.ICMPTypeEcho), Code: 0, ID: uint16(rand.Int()), Seq: uint16(ttl)}
@@ -94,9 +113,11 @@ func main() {
 
 			ans := Packet{}
 			buff = bytes.Buffer{}
-			binary.Read(bytes.NewReader(data[:n]), binary.BigEndian, &ans)
+			payload := make([]byte, n-8)
+			binary.Read(bytes.NewReader(data[:8]), binary.BigEndian, &ans)
+			binary.Read(bytes.NewReader(data[8:n]), binary.BigEndian, &payload)
 
-			if !checkChecksum(ans) {
+			if !checkChecksum(ans, payload) {
 				fmt.Printf("%d\t*\t%s\t(%s)\tERROR: bad checksum\n", ttl, node.String(), nodeName)
 				continue
 			}
@@ -140,12 +161,13 @@ func checksum(data []byte) uint16 {
 	return uint16(^sum)
 }
 
-func checkChecksum(packet Packet) bool {
+func checkChecksum(packet Packet, payload []byte) bool {
 	got := packet.Checksum
 	packet.Checksum = 0
 
 	var buff bytes.Buffer
 	binary.Write(&buff, binary.BigEndian, packet)
+	binary.Write(&buff, binary.BigEndian, payload)
 
 	control := checksum(buff.Bytes())
 
