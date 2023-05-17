@@ -74,7 +74,6 @@ func main() {
 	statusLabel := widget.NewLabel("")
 	table := container.New(layout.NewVBoxLayout())
 	options := make([]*TransRule, 0, 1e5)
-	//connections := widget.NewLabel("")
 
 	sendButton := widget.NewButton("Start", func() {
 		dstIP := dstIPEntry.Text
